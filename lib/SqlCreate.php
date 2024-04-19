@@ -50,6 +50,21 @@ class SqlCreate
         $this->where[] = $whereClause;
         return $this;
     }
+    public function whereLike($column, $value)
+    {
+        $this->where[] = "$column LIKE '$value'";
+        return $this;
+    }
+    public function whereOr($column, $value)
+    {
+        if (is_string($value)) {
+            $this->where[] = "OR $column = '$value'";
+        }
+        if (is_int($value)) {
+            $this->where[] = "OR $column = $value";
+        }
+        return $this;
+    }
     public function order($column, $direction = 'ASC')
     {
         $this->order[] = "$column $direction";
@@ -61,7 +76,6 @@ class SqlCreate
         $content = func_get_args();
         $num = func_num_args();
         $one = (int)$content[0];
-        $one == 0 && $one=1;
         if ($num > 1) {
             $two = (int)$content[1];
             $this->limit = "$one,$two";
@@ -220,13 +234,6 @@ class SqlCreate
             return $this;
         }
     }
-    public function whereFun(callable $function)
-    {
-        $builder = new WhereBuilder();
-        $function($builder);
-        $this->where[] = $builder->getCondition();
-        return $this;
-    }
     public function setLogPath($path)
     {
         $this->logPath = $path;
@@ -308,6 +315,19 @@ class SqlCreate
             file_put_contents($path . '/' . date('Ymd') . '.txt', 'SQL语句(' . date('Y-m-d H:i:s') . '):' . $this->sql . PHP_EOL, FILE_APPEND);
         });
     }
+    public function query($sql, $pool)
+    {
+        $this->sql = $sql;
+        if ($pool instanceof \Swoole\Database\PDOPool) {
+            $this->_write_log();
+            $data = $this->_query_data($pool);
+            $this->setEmpty();
+            return $data;
+        } else {
+            return [];
+        }
+    }
+
     private function setEmpty()
     {
         $this->database = '';
@@ -318,27 +338,5 @@ class SqlCreate
         $this->limit = '';
         $this->data = [];
         $this->sql = '';
-    }
-}
-
-class WhereBuilder
-{
-    protected $condition = [];
-
-    public function where($column, $operator, $value)
-    {
-        $this->condition[] = "$column $operator '$value'";
-        return $this;
-    }
-
-    public function orWhere($column, $operator, $value)
-    {
-        $this->condition[] = "OR $column $operator '$value'";
-        return $this;
-    }
-
-    public function getCondition()
-    {
-        return implode(' ', $this->condition);
     }
 }

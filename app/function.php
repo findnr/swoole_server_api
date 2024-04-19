@@ -1,4 +1,28 @@
 <?php
+use app\Jwt;
+/**
+ *  @param   string  $key  [加密key]
+ *  @param   string  $time  [过期时间s]
+ *  @param   array  $data  [携带的数据]
+ * 
+ *  @return  string         [返回jwt数据]
+ * 
+ */
+function jwt_get(string $key="aaa",int $time=3600,array $data=[]) :string
+{
+    return Jwt::init()->setKey($key)->setExpireTime($time)->setData($data)->create();
+}
+/**
+ *  @param   string  $key  [加密key]
+ *  @param   string  $jwt  [jwt字符串]
+ *
+ *  @return  string         [返回jwt中数据数组]
+ * 
+ */
+function jwt_arr(string $key='aaa',string $jwt='') :array
+{
+    return Jwt::init()->setKey($key)->setJwt($jwt)->verify();
+}
 /**
  * 数组转XML
  *

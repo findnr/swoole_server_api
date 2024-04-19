@@ -11,7 +11,7 @@ use function Swoole\Coroutine\Http\get;
 use function Swoole\Coroutine\run;
 use function Swoole\Coroutine\go;
 
-$http = new Swoole\Http\Server('0.0.0.0', 9502);
+$http = new Swoole\Http\Server('0.0.0.0', 59998);
 
 $dir = __DIR__;
 
@@ -30,13 +30,14 @@ $http->set(array(
     'heartbeat_check_interval' => 60,  // 表示每60秒遍历一次
     'task_enable_coroutine' => true,
     'task_worker_num' => 1,
-    // 'log_file' => $dir . DIRECTORY_SEPARATOR . 'shareapi_log',
+    // 'log_file' => $dir . DIRECTORY_SEPARATOR . 'http_log',
 
 ));
 
 $http->on('start', function ($server) use ($dir, $http) {
-    echo "Swoole http server is started at http://0.0.0.0:9502\n";
+    echo "Swoole http server is started at http://0.0.0.0:59998\n";
 });
+
 $table_array=[];
 $test_table = new Swoole\Table(50);
 $test_table->column('token', Swoole\Table::TYPE_STRING, 32);
@@ -49,7 +50,6 @@ $table_array=['test_table'=>$test_table];
 $http->tables=$table_array;
 
 $http->on('WorkerStart', function ($server, $worker_id) use ($dir) {
-    $mysql_array=[];
     spl_autoload_register(function ($class) use ($dir) {
         $tmp = explode('\\', $class);
         $len = count($tmp) - 1;
@@ -61,24 +61,31 @@ $http->on('WorkerStart', function ($server, $worker_id) use ($dir) {
     });
     
     if ($server->taskworker) {
-        echo "task workerId：{$worker_id}\n";
-        echo "task worker_id：{$server->worker_id}\n";
-        $num = 1;
         include_once $dir . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'function.php';
-        include_once $dir . DIRECTORY_SEPARATOR . 'mysqlconfig.php';
-        $mysql_array['mysql_test']=get_mysql_obj($num);
-        $server->mysqls = $mysql_array;
+        include_once $dir . DIRECTORY_SEPARATOR . 'dbconfig.php';
+        foreach ($db_arr as $k=>$v) {
+            if($v['is_active']['task_worker']){
+                $server->db[$k]=$v['obj'];
+                if($v['fun'] != ''){
+                    $v['fun']($v['obj'],$v['num']);
+                }
+            }
+        }
         $file = glob($dir . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . "*.php");
         array_walk($file, function ($v) {
             include_once $v;
         });
     } else {
-        $num = 2;
         include_once $dir . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'function.php';
-        include_once($dir . DIRECTORY_SEPARATOR . 'mysqlconfig.php');
-        $mysql_array['mysql_test']=get_mysql_obj($num);
-        $server->mysqls = $mysql_array;
-        connect_auto_time( $mysql_array['mysql_test'], $num);
+        include_once($dir . DIRECTORY_SEPARATOR . 'dbconfig.php');
+        foreach ($db_arr as $k=>$v) {
+            if($v['is_active']['worker']){
+                $server->db[$k]=$v['obj'];
+                if($v['fun'] != ''){
+                    $v['fun']($v['obj'],$v['num']);
+                }
+            }
+        }
         $file = glob($dir . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . "*.php");
         array_walk($file, function ($v) {
             include_once $v;
@@ -117,6 +124,7 @@ $http->on('Request', function ($request, $response) use ($dir, $http) {
         $response->end(json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 });
+
 $http->on('task', function ($server, $task_id, $reactor_id, $data) {
     echo "New AsyncTask[id={$task_id}]\n";
     $server->finish("{$data} -> OK");
@@ -125,10 +133,11 @@ $http->on('task', function ($server, $task_id, $reactor_id, $data) {
 $http->on('finish', function ($server, $task_id, $data) {
     echo "AsyncTask[{$task_id}] finished: {$data}\n";
 });
+
 $process = new Process(function () use ($dir, $http) {
     $fd = inotify_init();
     inotify_add_watch($fd, $dir . '/app', IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
-    inotify_add_watch($fd, $dir . '/app/testcommon', IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
+    inotify_add_watch($fd, $dir . '/app/test/common', IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
     inotify_add_watch($fd, $dir . '/app/test/controller', IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
     inotify_add_watch($fd, $dir . '/lib', IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
     Co\run(function () use ($fd, $http) {
