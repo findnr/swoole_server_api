@@ -2,8 +2,8 @@
 /*
  * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
  * @Date: 2024-03-27 15:14:15
- * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2024-03-27 15:45:47
+ * @LastEditors: findnr
+ * @LastEditTime: 2024-05-27 16:16:15
  * @FilePath: \swoole_http_api_xiehui\app\Mysql.php
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -14,39 +14,62 @@ namespace app;
 
 class Mysql
 {
+    //数据库对象
     private $obj;
+    //数据名称
     protected $database;
+    //表名称
     protected $table;
+    //字段名称
     protected $fields = ['*'];
+    //where条件
     protected $where = [];
+    //排序
     protected $order = [];
+    //limit条件
     protected $limit;
+    //数据
     protected $data = [];
+    //组合的SQL语句
     protected $sql = '';
+    //日志文件路径
     protected $logPath = '';
+    /**
+     * 
+     */
+
     public function __construct($obj,$path='')
     {
         $this->obj=$obj;
         $this->logPath=$path;
     }
+    /**
+     * 
+     */
     public function setDatabase($database)
     {
         $this->database = $database;
         return $this;
     }
-
+    /**
+     * 
+     */
     public function table($table)
     {
         $this->table = $table;
         return $this;
     }
-
+    /**
+     * 
+     */
     public function fields($fields)
     {
         $this->fields = is_array($fields) ? $fields : func_get_args();
         return $this;
     }
-
+    /**
+     * 
+     */
     public function where($column, $value = '')
     {
         if (is_string($value)) {
@@ -122,9 +145,7 @@ class Mysql
         }
         $this->sql = $sql;
         if($this->obj instanceof \Swoole\Database\PDOPool){
-            $this->_write_log();
-            $data=$this->_query_data();
-            $this->setEmpty();
+            $data=$this->_query_data('select');
             return $data;
         }else{
             return $this;
@@ -140,7 +161,7 @@ class Mysql
             if (is_string($v)) {
                 $data[] = "$k = '$v'";
             }
-            if (is_int($v)) {
+            if (is_numeric($v)) {
                 $data[] = "$k = $v";
             }
         });
@@ -155,15 +176,12 @@ class Mysql
 
         $this->sql = $sql;
         if($this->obj instanceof \Swoole\Database\PDOPool){
-            $this->_write_log();
             $data=$this->_query_data();
-            $this->setEmpty();
             return $data;
         }else{
             return $this;
         }
     }
-
     public function delete()
     {
         $where = implode(' AND ', $this->where);
@@ -171,9 +189,7 @@ class Mysql
         $sql = "DELETE FROM $database$this->table WHERE $where";
         $this->sql = $sql;
         if($this->obj instanceof \Swoole\Database\PDOPool){
-            $this->_write_log();
             $data=$this->_query_data();
-            $this->setEmpty();
             return $data;
         }else{
             return $this;
@@ -198,54 +214,77 @@ class Mysql
         $values = rtrim($values, ',');
         $this->sql = "INSERT INTO $database$table ($columns) VALUES ($values)";
         if($this->obj instanceof \Swoole\Database\PDOPool){
-            $this->_write_log();
             $data=$this->_query_data();
-            $this->setEmpty();
             return $data;
         }else{
-            return $this;
+            return [];
         }
     }
-    public function insertBatch(array $dataRows)
+    public function insertGetId(array $data = [])
     {
         $database = $this->database ? "`$this->database`." : '';
         $table = $this->table;
+        $data = array_merge($this->data, $data);
 
-        // Check if dataRows is provided and not empty.
-        if (empty($dataRows)) {
-            throw new \RuntimeException("No data provided for INSERT BATCH operation.");
-        }
-
-        // Get the column names from the first data row.
-        $firstDataRow = reset($dataRows);
-        $columns = implode(', ', array_keys($firstDataRow));
-
-        // Create placeholders for each data row's values.
-        $valuesPlaceholder = '(' . implode(', ', array_fill(0, count($firstDataRow), '?')) . ')';
-        $valuesPlaceholders = implode(', ', array_fill(0, count($dataRows), $valuesPlaceholder));
-
-        $sql = "INSERT INTO $database$table ($columns) VALUES $valuesPlaceholders";
-
-        // Clear any previously set WHERE conditions, as they don't apply to INSERT.
-        $this->where = [];
-
-        // Flatten the multi-dimensional array to get all values in the correct order.
-        $values = [];
-        foreach ($dataRows as $dataRow) {
-            $values = array_merge($values, array_values($dataRow));
-        }
-
-        // Set the SQL statement and data.
-        $this->sql = $sql;
-        $this->data = $values;
-
-        if($this->obj instanceof \Swoole\Database\PDOPool){
-            $this->_write_log();
-            $data=$this->_query_data();
+        $columns = implode(', ', array_keys($data));
+        $values = '';
+        array_walk($data, function ($v) use (&$values) {
+            if (is_string($v)) {
+                $values .= "'$v',";
+            }
+            if (is_int($v)) {
+                $values .= "$v,";
+            }
+        });
+        $values = rtrim($values, ',');
+        $this->sql = "INSERT INTO $database$table ($columns) VALUES ($values)";
+        if(!($this->obj instanceof \Swoole\Database\PDOPool)) return 0;
+        $pdo = $this->obj->get();
+        try {
+            $statement = $pdo->exec($this->sql);
+            $u_id = (int)$pdo->lastInsertId();
             $this->setEmpty();
-            return $data;
-        }else{
-            return $this;
+            $this->obj->put($pdo);
+            if ($u_id) {
+                return $u_id;
+            } else {
+                return 0;
+            }
+        } catch (\Throwable $th) {
+            $this->obj->put($pdo);
+            return 0;
+            //throw $th;
+        }
+    }
+    public function insertAll(array $dataRows): int
+    {
+        if (empty($dataRows)) {
+            return 0;
+        }
+        $columns = implode(', ', array_keys($dataRows[0]));
+        $valuesPlaceholder = '(' . implode(', ', array_fill(0, count($dataRows[0]), '?')) . ')';
+        $valuesPlaceholders = implode(', ', array_fill(0, count($dataRows), $valuesPlaceholder));
+        $sql = "INSERT INTO `$this->table` ($columns) VALUES $valuesPlaceholders";
+        $allValues = [];
+        foreach ($dataRows as $data) {
+            $allValues = array_merge($allValues, array_values($data));
+        }
+        $pdo = $this->obj->get();
+        try {
+            $statement = $pdo->prepare($sql);
+            foreach ($allValues as $k => $v) {
+                $statement->bindParam($k+1,$v);
+            }
+            $this->sql=$statement->queryString;
+            $statement->execute();
+            $this->_write_log();
+            $rowCount = $statement->rowCount();
+            $this->obj->put($pdo);
+            $this->setEmpty();
+            return $rowCount;
+        } catch (\Throwable $e) {
+            $this->obj->put($pdo);
+            return 0;
         }
     }
     public function setLogPath($path)
@@ -253,11 +292,11 @@ class Mysql
         $this->logPath = $path;
         return $this;
     }
-    public function count()
+    public function count($id='id')
     {
         $where = implode(' AND ', $this->where);
         $database = $this->database ? "`$this->database`." : '';
-        $sql = "SELECT COUNT(id) as count FROM $database$this->table";
+        $sql = "SELECT COUNT($id) as count FROM $database$this->table";
         if ($where) {
             $sql .= " WHERE $where";
         }
@@ -274,51 +313,31 @@ class Mysql
             return 0;
         }
     }
-    public function runGetId()
-    {
-        $pdo =$this->obj->get();
-        $this->_write_log();
-        try {
-            $statement = $pdo->exec($this->sql);
-            $u_id = (int)$pdo->lastInsertId();
-            $this->setEmpty();
-            $this->obj->put($pdo);
-            if ($u_id) {
-                return $u_id;
-            } else {
-                return 0;
-            }
-        } catch (\Throwable $th) {
-            //throw $th;
-            $this->obj->put($pdo);
-            $this->setEmpty();
-            return 0;
-        }
-    }
-    public function run()
-    {
-        $this->_write_log();
-        $data=$this->_query_data();
-        $this->setEmpty();
-        return $data;
-    }
-    private function _query_data()
+    private function _query_data(string $action='default')
     {
         $pdo = $this->obj->get();
         try {
+            $this->_write_log();
             $statement = $pdo->prepare($this->sql);
             $statement->execute();
-            $datas = $statement->fetchAll(\PDO::FETCH_ASSOC);
-            $this->obj->put($pdo);
-            if (count($datas) > 0) {
-                return $datas;
-            } else {
-                return [];
+            switch ($action) {
+                case 'default':
+                    $rowCount = $statement->rowCount();
+                    $this->obj->put($pdo);
+                    $this->setEmpty();
+                    return $rowCount;
+                    break;
+                case 'select':
+                    $datas = $statement->fetchAll(\PDO::FETCH_ASSOC);
+                    $this->obj->put($pdo);
+                    $this->setEmpty();
+                    return $datas;
+                    break;
             }
         } catch (\Throwable $th) {
             //throw $th;
             $this->obj->put($pdo);
-            return [];
+            return null;
         }
     }
     private function _write_log()

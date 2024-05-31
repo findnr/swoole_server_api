@@ -2,8 +2,8 @@
 /*
  * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
  * @Date: 2024-03-28 09:39:38
- * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2024-03-28 10:28:18
+ * @LastEditors: findnr
+ * @LastEditTime: 2024-05-08 15:39:23
  * @FilePath: \swoole_http_api_xiehui\app\Jwt.php
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -66,7 +66,7 @@ class Jwt
         
         $parts = explode('.', $this->jwt);
         if (count($parts) !== 3 || !$this->isBase64UrlEncoded($parts[0]) || !$this->isBase64UrlEncoded($parts[1])) {
-            return sa('jwt格式不对');
+            return ea('jwt格式不对');
         }
         $headerString = $this->base64UrlDecode($parts[0]);
         $payloadString = $this->base64UrlDecode($parts[1]);
@@ -74,22 +74,22 @@ class Jwt
 
         $header = json_decode($headerString, true);
         if ($header === null) {
-            return sa('jwt头部不对');
+            return ea('jwt头部不对');
         }
 
         $payload = json_decode($payloadString, true);
         if ($payload === null) {
-            return sa('jwt数据不对');
+            return ea('jwt数据不对');
         }
 
         $expectedSignature = hash_hmac('sha256', $parts[0] . '.' . $parts[1], $this->key, true);
         if (!hash_equals($expectedSignature, $signature)) {
-            return sa('签名验证失败');
+            return ea('签名验证失败');
         }
 
         $now = time();
         if (!isset($payload['exp']) || $payload['exp'] < $now) {
-            return sa('JWT已过期');
+            return ea('JWT已过期');
         }
         return sa($payload);
     }

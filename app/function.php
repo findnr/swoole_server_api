@@ -1,4 +1,5 @@
 <?php
+
 use app\Jwt;
 /**
  *  @param   string  $key  [加密key]
