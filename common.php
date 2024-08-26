@@ -3,7 +3,6 @@
 /**
  * 说明：http服务
  */
-
 use Swoole\Process;
 
 spl_autoload_register(function ($class) use ($path_root) {
@@ -160,6 +159,22 @@ $http->on('task', function ($server, $task_id, $reactor_id, $data) {
 $http->on('finish', function ($server, $task_id, $data) {
     echo "AsyncTask[{$task_id}] finished: {$data}\n";
 });
+function hot_start($http,$hot_file){
+    $process = new Process(function () use ($http,$hot_file) {
+        $fd = inotify_init();
+        foreach ($hot_file as $k => $v) {
+            inotify_add_watch($fd, $v, IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
+        }
+        Co\run(function () use ($fd, $http) {
+            // var_dump($http);
+            Swoole\Event::add($fd, function () use ($fd, $http) {
+                $info = inotify_read($fd);
+                $http->reload();
+            });
+        });
+    });
+    $process->start();
+}
 switch (PHP_OS) {
     default:
     case 'Linux':
@@ -170,19 +185,5 @@ switch (PHP_OS) {
     case 'WINNT':
         break;
 }
-function hot_start($http,$hot_file){
-    $process = new Process(function () use ($http,$hot_file) {
-        $fd = inotify_init();
-        foreach ($hot_file as $k => $v) {
-            inotify_add_watch($fd, $v, IN_MODIFY | IN_CREATE | IN_DELETE | IN_ISDIR);
-        }
-        Co\run(function () use ($fd, $http) {
-            Swoole\Event::add($fd, function () use ($fd, $http) {
-                $info = inotify_read($fd);
-                $http->reload();
-            });
-        });
-    });
-    $process->start();
-}
+
 $http->start();
