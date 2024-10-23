@@ -3,7 +3,7 @@
  * @Author: findnr
  * @Date: 2024-05-30 14:41:02
  * @LastEditors: findnr
- * @LastEditTime: 2024-05-31 16:49:00
+ * @LastEditTime: 2024-10-23 10:59:53
  * @Description: 
  */
 declare(strict_types=1);
@@ -41,7 +41,6 @@ $table_box=[
     ],
 ];
 //需要加载的文件，文件加载是在works进程中加载的
-
 $include_file=[
     $dir. DIRECTORY_SEPARATOR. 'db.php',
     $dir. DIRECTORY_SEPARATOR. 'router.php',
@@ -62,3 +61,5 @@ $hot_file=[
     $root.'/app/xiehui/controller',
     $root.'/app/xiehui/config',
 ];
+//task_worker进程要执行的任务
+$task_worker_list=[];

@@ -62,7 +62,7 @@ $http->tables = $table_array;
 $http->script_name = $script_name;
 $http->path_root = $path_root;
 
-$http->on('WorkerStart', function ($server, $worker_id) use ($http,$include_file,$include_dir,$header_info) {
+$http->on('WorkerStart', function ($server, $worker_id) use ($http,$include_file,$include_dir,$header_info,$task_worker_list) {
     $http->header_info=$header_info;
     spl_autoload_register(function ($class) use ($http) {
         $tmp = explode('\\', $class);
@@ -73,18 +73,24 @@ $http->on('WorkerStart', function ($server, $worker_id) use ($http,$include_file
             include_once $path_include;
         }
     });
+    //加载公共函数
     include_once $http->path_root.DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'function.php';
+    //加载批定的类，在配制文件中设置
     foreach ($include_file as $k => $v) {
         include_once $v;
     }
+    //配制文件的路由信息
     $http->router=$router;
+    //加载指定目录下的所用PHP文件
     array_walk($include_dir,function($v){
         $file = glob($v);
         array_walk($file, function ($v) {
             include_once $v;
         });
     });
+    //taskworker进程与work进程分别加载信息
     if ($server->taskworker) {
+        //加载数据库，redis相关的配制信息，可在配制文件中设置
         foreach ($db_arr as $k=>$v) {
             if($v['is_active']['task_worker']){
                 $server->db[$k]=$v['obj'];
@@ -93,7 +99,12 @@ $http->on('WorkerStart', function ($server, $worker_id) use ($http,$include_file
                 }
             }
         }
+        //在task进程中可以运行的程序，类中必须要有run这个方法才能运行。
+        foreach($task_worker_list as $v){
+            (new $v($http))->run();
+        }
     } else {
+        //加载数据库，redis相关的配制信息，可在配制文件中设置
         foreach ($db_arr as $k=>$v) {
             if($v['is_active']['worker']){
                 $server->db[$k]=$v['obj'];

@@ -3,7 +3,7 @@
  * @Author: findnr
  * @Date: 2024-03-27 13:38:38
  * @LastEditors: findnr
- * @LastEditTime: 2024-05-10 09:26:52
+ * @LastEditTime: 2024-09-13 10:15:08
  * @Description: 
  */
 
@@ -45,7 +45,13 @@ class Redis
         $result = $redis->set($name, json_encode($value,JSON_UNESCAPED_UNICODE));
         $this->redisPools->put($redis);
         return $result;
-
+    }
+    public function del(string $name='')
+    {
+        $redis = $this->redisPools->get();
+        $result = $redis->del($name);
+        $this->redisPools->put($redis);
+        return $result;
     }
     public function flush()
     {
