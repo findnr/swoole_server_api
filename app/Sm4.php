@@ -53,6 +53,11 @@ class Sm4
      */
     public function __construct($key, $b = ' ')
     {
+        if (strlen($key) > 16) {
+            $key = substr($key, 0, 16);
+        }else{
+            $key = str_pad($key, 16, ' ', STR_PAD_RIGHT);
+        }
         $this->ck16($key);
         $this->crk($key);
     }
